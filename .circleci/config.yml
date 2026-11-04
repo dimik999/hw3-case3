@@ -1,0 +1,44 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@2.1.1
+
+jobs:
+  build-and-test:
+    executor: python/default
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: Run simple test
+          command: python -c "import app; print('App imported successfully')"
+      - persist_to_workspace:
+          root: .
+          paths: [ . ]
+
+  deploy-to-render:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: Deploy to Render via Webhook
+          command: |
+            if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+              echo "Error: RENDER_DEPLOY_HOOK is not set"
+              exit 1
+            fi
+            echo "Triggering deploy on Render..."
+            # Отправляем GET-запрос на Webhook Render
+            curl -s -X GET "$RENDER_DEPLOY_HOOK"
+            echo "Deploy triggered!"
+
+workflows:
+  build-deploy:
+    jobs:
+      - build-and-test
+      - deploy-to-render:
+          requires: [ build-and-test ]
+          filters:
+            branches:
+              only: main
